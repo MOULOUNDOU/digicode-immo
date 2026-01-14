@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import RequireRole from "@/components/auth/RequireRole";
-import { type LocalSession } from "@/lib/auth/local";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { fileToDataUrl } from "@/lib/profiles/local";
 import { UploadCloud } from "lucide-react";
@@ -14,10 +13,18 @@ import {
   type SupabaseListing,
 } from "@/lib/listings/supabase";
 
+export const dynamic = "force-dynamic";
+
+type BrokerSession = {
+  userId: string;
+  email: string;
+  role: "broker";
+};
+
 export default function BrokerDashboardPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [session, setSession] = useState<LocalSession | null>(null);
+  const [session, setSession] = useState<BrokerSession | null>(null);
   const [items, setItems] = useState<SupabaseListing[]>([]);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -40,7 +47,7 @@ export default function BrokerDashboardPage() {
     supabase.auth.getSession().then(async ({ data }) => {
       const user = data.session?.user;
       if (!user) return;
-      const s: LocalSession = {
+      const s: BrokerSession = {
         userId: user.id,
         email: user.email ?? "",
         role: "broker",
