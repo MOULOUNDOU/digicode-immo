@@ -6,7 +6,7 @@ export default function Footer() {
   return (
     <footer className="mt-12 border-t border-black/10 bg-white">
       <div className="mx-auto w-full max-w-6xl px-4 py-10">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-3">
             <a href="/" className="inline-flex items-center gap-2">
               <Image
@@ -65,9 +65,9 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="mt-10 flex flex-col gap-3 border-t border-black/10 pt-6 text-sm text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col gap-3 border-t border-black/10 pt-6 text-sm text-zinc-600 md:flex-row md:items-center md:justify-between">
           <div>© {year} Digicode IMMO. Tous droits réservés.</div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
+          <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:gap-x-4 md:gap-y-2">
             <a href="/" className="hover:text-black">Conditions</a>
             <a href="/" className="hover:text-black">Confidentialité</a>
           </div>
