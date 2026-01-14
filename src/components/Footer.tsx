@@ -48,12 +48,15 @@ export default function Footer() {
             <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Contact</div>
             <div className="grid gap-2 text-sm">
               <a
-                href="https://wa.me/221770000000"
+                href="https://wa.me/221777269484"
                 target="_blank"
                 rel="noreferrer"
                 className="text-zinc-700 hover:text-black"
               >
-                WhatsApp
+                WhatsApp : +221 77 726 94 84
+              </a>
+              <a href="tel:+221777269484" className="text-zinc-700 hover:text-black">
+                Tél : +221 77 726 94 84
               </a>
               <a
                 href="mailto:contact@digicode-immo.com"
