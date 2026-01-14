@@ -15,6 +15,8 @@ import {
   Home,
   Inbox,
   Key,
+  Menu,
+  MessageSquare,
   MoreHorizontal,
   Plus,
   Search,
@@ -23,6 +25,7 @@ import {
   UserRound,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 
 type NavItem = {
@@ -41,15 +44,10 @@ function sidebarItems(role: UserRole): NavItem[] {
   if (role === "broker") {
     return [
       { label: "Accueil", href: "/dashboard/broker", Icon: Home },
-      { label: "Locations", href: "/dashboard/broker/locations", Icon: Key },
-      { label: "Propriétés", href: "/dashboard/broker/properties", Icon: Building2 },
-      { label: "Locataires", href: "/dashboard/broker/tenants", Icon: Users },
-      { label: "Revenus", href: "/dashboard/broker/revenue", Icon: Wallet },
-      { label: "Analytiques", href: "/dashboard/broker/analytics", Icon: BarChart3 },
       { label: "Demandes", href: "/dashboard/broker/requests", Icon: Inbox },
-      { label: "Avis", href: "/dashboard/broker/reviews", Icon: Star },
-      { label: "Automatisations", href: "/dashboard/broker/automations", Icon: Sparkles },
-      { label: "Plus", href: "/dashboard/broker/more", Icon: MoreHorizontal },
+      { label: "Mes annonces", href: "/dashboard/broker/listings", Icon: Building2 },
+      { label: "Messages", href: "/dashboard/broker/messages", Icon: MessageSquare },
+      { label: "Paramètres", href: "/dashboard/broker/settings", Icon: Cog },
     ];
   }
 
@@ -90,6 +88,7 @@ export default function DashboardShell({
 
   const [email, setEmail] = useState<string | null>(null);
   const [role, setRole] = useState<UserRole | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -106,88 +105,133 @@ export default function DashboardShell({
     });
   }, [pathname, router]);
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   const effectiveRole: UserRole = role ?? "client";
   const items = useMemo(() => sidebarItems(effectiveRole), [effectiveRole]);
 
+  const sidebar = (
+    <>
+      <div className="flex items-center justify-between px-4 py-4">
+        <a href="/" className="flex items-center gap-2">
+          <Image
+            src="/digicode-immo-logo.jpeg"
+            alt="Logo Digicode immo"
+            width={40}
+            height={40}
+            priority
+            className="h-9 w-9 rounded-xl object-contain"
+          />
+          <div className="leading-tight">
+            <div className="text-sm font-semibold">Digicode IMMO</div>
+            <div className="text-xs text-zinc-500">{roleLabel(effectiveRole)}</div>
+          </div>
+        </a>
+        <div className="text-xs text-zinc-400">v0</div>
+      </div>
+
+      <nav className="px-2 py-2">
+        {items.map((item) => {
+          const active = isActive(pathname, item.href);
+          const Icon = item.Icon;
+          return (
+            <a
+              key={item.label}
+              href={item.href}
+              onClick={() => setMobileNavOpen(false)}
+              className={
+                "mb-1 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors " +
+                (active
+                  ? "bg-yellow-400 text-black"
+                  : "text-zinc-700 hover:bg-zinc-100")
+              }
+            >
+              <Icon className="h-5 w-5" />
+              {item.label}
+            </a>
+          );
+        })}
+      </nav>
+
+      <div className="mt-auto border-t border-black/10 p-4">
+        <a
+          href="/"
+          onClick={() => setMobileNavOpen(false)}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+        >
+          <Home className="h-5 w-5" />
+          Retour au site
+        </a>
+        <a
+          href={
+            effectiveRole === "admin"
+              ? "/dashboard/admin/settings"
+              : effectiveRole === "broker"
+                ? "/dashboard/broker/settings"
+                : "/dashboard/client/settings"
+          }
+          onClick={() => setMobileNavOpen(false)}
+          className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+        >
+          <Cog className="h-5 w-5" />
+          Paramètres
+        </a>
+        <a
+          href="#"
+          className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+        >
+          <CircleHelp className="h-5 w-5" />
+          Centre d’aide
+        </a>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-dvh bg-zinc-50 text-zinc-950">
+      {mobileNavOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <button
+            type="button"
+            aria-label="Fermer le menu"
+            onClick={() => setMobileNavOpen(false)}
+            className="absolute inset-0 bg-black/40"
+          />
+          <aside className="absolute inset-y-0 left-0 flex w-[85vw] max-w-xs flex-col border-r border-black/10 bg-white shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="text-sm font-semibold">Menu</div>
+              <button
+                type="button"
+                aria-label="Fermer"
+                onClick={() => setMobileNavOpen(false)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl hover:bg-zinc-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{sidebar}</div>
+          </aside>
+        </div>
+      ) : null}
       <div className="mx-auto flex min-h-dvh w-full max-w-[1400px]">
-        <aside className="hidden w-64 shrink-0 border-r border-black/10 bg-white lg:block">
-          <div className="flex items-center justify-between px-4 py-4">
-            <a href="/" className="flex items-center gap-2">
-              <Image
-                src="/digicode-immo-logo.jpeg"
-                alt="Logo Digicode immo"
-                width={40}
-                height={40}
-                priority
-                className="h-9 w-9 rounded-xl object-contain"
-              />
-              <div className="leading-tight">
-                <div className="text-sm font-semibold">Digicode IMMO</div>
-                <div className="text-xs text-zinc-500">{roleLabel(effectiveRole)}</div>
-              </div>
-            </a>
-            <div className="text-xs text-zinc-400">v0</div>
-          </div>
-
-          <nav className="px-2 py-2">
-            {items.map((item) => {
-              const active = isActive(pathname, item.href);
-              const Icon = item.Icon;
-              return (
-                <a
-                  key={item.label}
-                  href={item.href}
-                  className={
-                    "mb-1 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors " +
-                    (active
-                      ? "bg-yellow-400 text-black"
-                      : "text-zinc-700 hover:bg-zinc-100")
-                  }
-                >
-                  <Icon className="h-5 w-5" />
-                  {item.label}
-                </a>
-              );
-            })}
-          </nav>
-
-          <div className="mt-auto border-t border-black/10 p-4">
-            <a
-              href="/"
-              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-            >
-              <Home className="h-5 w-5" />
-              Retour au site
-            </a>
-            <a
-              href={
-                effectiveRole === "admin"
-                  ? "/dashboard/admin/settings"
-                  : effectiveRole === "broker"
-                    ? "/dashboard/broker/settings"
-                    : "/dashboard/client/settings"
-              }
-              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-            >
-              <Cog className="h-5 w-5" />
-              Paramètres
-            </a>
-            <a
-              href="#"
-              className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-            >
-              <CircleHelp className="h-5 w-5" />
-              Centre d’aide
-            </a>
-          </div>
+        <aside className="hidden w-64 shrink-0 border-r border-black/10 bg-white lg:flex lg:flex-col">
+          {sidebar}
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="sticky top-0 z-10 border-b border-black/10 bg-white/80 backdrop-blur">
             <div className="flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  aria-label="Ouvrir le menu"
+                  onClick={() => setMobileNavOpen(true)}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-black/10 bg-white hover:bg-zinc-50 lg:hidden"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
                 <div className="flex items-center gap-2 lg:hidden">
                   <a href="/" className="flex items-center gap-2">
                     <Image
