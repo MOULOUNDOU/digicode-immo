@@ -14,6 +14,7 @@ body {
   max-width: 100%;
   overflow-x: hidden;
   -webkit-text-size-adjust: 100%;
+  font-size: 19px;
 }
 
 img,
@@ -27,27 +28,27 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 17px;
+  font-size: inherit;
   line-height: 1.6;
 }
 
 h1 {
-  font-size: 2.125rem;
+  font-size: 2.375rem;
   line-height: 1.2;
 }
 
 h2 {
-  font-size: 1.625rem;
+  font-size: 1.875rem;
   line-height: 1.25;
 }
 
 h3 {
-  font-size: 1.25rem;
+  font-size: 1.375rem;
   line-height: 1.3;
 }
 
 h4 {
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   line-height: 1.35;
 }
 
@@ -55,7 +56,7 @@ input,
 select,
 textarea,
 button {
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.25;
 }
 
