@@ -67,11 +67,20 @@ export default function RegisterClient() {
 
       const normalizedEmail = email.trim();
 
+      const emailRedirectTo = (() => {
+        try {
+          return `${window.location.origin}/login`;
+        } catch {
+          return undefined;
+        }
+      })();
+
       const supabase = createSupabaseBrowserClient();
       const { data, error } = await supabase.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
+          emailRedirectTo,
           data: {
             role,
             display_name: fullName.trim(),
@@ -81,7 +90,7 @@ export default function RegisterClient() {
       });
 
       if (error) {
-        setError("Impossible de créer le compte");
+        setError(error.message || "Impossible de créer le compte");
         return;
       }
 
