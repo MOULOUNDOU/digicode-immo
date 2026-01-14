@@ -52,6 +52,54 @@ export async function listPublicListings(params?: {
   return (data ?? []).map(mapRowToListing);
 }
 
+export async function listPublicListingsPaged(params: {
+  page: number;
+  pageSize: number;
+  q?: string;
+  city?: string;
+  type?: SupabaseListing["type"] | "";
+  maxPriceXof?: number | null;
+}): Promise<{ items: SupabaseListing[]; total: number }> {
+  const supabase = createSupabaseBrowserClient();
+  const page = Number.isFinite(params.page) ? params.page : 1;
+  const pageSize = Number.isFinite(params.pageSize) ? params.pageSize : 6;
+  const from = Math.max(0, (page - 1) * pageSize);
+  const to = from + pageSize - 1;
+
+  let query = supabase
+    .from("listings")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(from, to);
+
+  const city = params.city?.trim();
+  const q = params.q?.trim();
+  const type = params.type?.trim();
+  const maxPrice = typeof params.maxPriceXof === "number" ? params.maxPriceXof : null;
+
+  if (city) query = query.ilike("city", `%${city}%`);
+  if (type) query = query.eq("type", type);
+  if (maxPrice !== null) query = query.lte("price_xof", maxPrice);
+  if (q) {
+    query = query.or(
+      [
+        `title.ilike.%${q}%`,
+        `city.ilike.%${q}%`,
+        `neighborhood.ilike.%${q}%`,
+        `description.ilike.%${q}%`,
+      ].join(",")
+    );
+  }
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(error.message);
+
+  return {
+    items: (data ?? []).map(mapRowToListing),
+    total: count ?? 0,
+  };
+}
+
 export async function listListingsForUser(userId: string): Promise<SupabaseListing[]> {
   const supabase = createSupabaseBrowserClient();
   const { data, error } = await supabase

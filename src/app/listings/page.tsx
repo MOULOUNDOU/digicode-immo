@@ -1,20 +1,47 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type UserRole } from "@/lib/auth/local";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getRoleForUser } from "@/lib/auth/supabase";
 import { listAllListings } from "@/lib/listings/local";
-import { listPublicListings, type SupabaseListing } from "@/lib/listings/supabase";
+import { listPublicListingsPaged, type SupabaseListing } from "@/lib/listings/supabase";
 
 export default function ListingsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [role, setRole] = useState<UserRole | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [allListings, setAllListings] = useState<SupabaseListing[]>([]);
-  const [q, setQ] = useState("");
-  const [city, setCity] = useState("");
-  const [type, setType] = useState<"" | SupabaseListing["type"]>("");
+  const [total, setTotal] = useState(0);
+
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+  const q = searchParams.get("q") ?? "";
+  const city = searchParams.get("city") ?? "";
+  const type = (searchParams.get("type") ?? "") as "" | SupabaseListing["type"];
+  const maxPriceXof = (() => {
+    const raw = (searchParams.get("max") ?? "").trim();
+    if (!raw) return "";
+    const n = Number(raw);
+    return Number.isFinite(n) ? String(Math.max(0, Math.floor(n))) : "";
+  })();
+
+  const [draftQ, setDraftQ] = useState(q);
+  const [draftCity, setDraftCity] = useState(city);
+  const [draftType, setDraftType] = useState<typeof type>(type);
+  const [draftMax, setDraftMax] = useState(maxPriceXof);
+
+  useEffect(() => {
+    setDraftQ(q);
+    setDraftCity(city);
+    setDraftType(type);
+    setDraftMax(maxPriceXof);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, city, type, maxPriceXof]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -29,26 +56,75 @@ export default function ListingsPage() {
       const r = await getRoleForUser(user.id);
       setRole(r);
     });
-  }, []);
+  }, [city, maxPriceXof, page, q, type]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / 12)), [total]);
+
+  function pushParams(next: Record<string, string>) {
+    const sp = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(next)) {
+      if (!v) sp.delete(k);
+      else sp.set(k, v);
+    }
+    router.push(`${pathname}?${sp.toString()}`);
+  }
+
+  function onSubmitSearch(e: FormEvent) {
+    e.preventDefault();
+    pushParams({
+      page: "1",
+      q: draftQ.trim(),
+      city: draftCity.trim(),
+      type: draftType,
+      max: draftMax.trim(),
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const data = await listPublicListings();
+        const res = await listPublicListingsPaged({
+          page,
+          pageSize: 12,
+          q,
+          city,
+          type,
+          maxPriceXof: maxPriceXof ? Number(maxPriceXof) : null,
+        });
         if (cancelled) return;
-        setAllListings(data);
+        setAllListings(res.items);
+        setTotal(res.total);
       } catch {
+        const all = listAllListings();
+        const query = q.trim().toLowerCase();
+        const filtered = all.filter((l) => {
+          if (city && l.city.toLowerCase().indexOf(city.toLowerCase()) === -1) return false;
+          if (type && l.type !== type) return false;
+          if (maxPriceXof && Number(l.priceXof) > Number(maxPriceXof)) return false;
+          if (!query) return true;
+          return (
+            l.title.toLowerCase().includes(query) ||
+            l.city.toLowerCase().includes(query) ||
+            l.neighborhood.toLowerCase().includes(query) ||
+            l.description.toLowerCase().includes(query)
+          );
+        });
+
+        const sorted = filtered.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+        const start = (page - 1) * 12;
+        const items = sorted.slice(start, start + 12);
         if (cancelled) return;
-        setAllListings(listAllListings() as any);
+        setAllListings(items as any);
+        setTotal(sorted.length);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [city, maxPriceXof, page, q, type]);
 
   const dashboardHref =
     role === "admin"
@@ -59,21 +135,7 @@ export default function ListingsPage() {
           ? "/dashboard/client"
           : null;
 
-  const listings = useMemo(() => {
-    const query = q.trim().toLowerCase();
-
-    return allListings.filter((l) => {
-      if (city && l.city.toLowerCase() !== city.toLowerCase()) return false;
-      if (type && l.type !== type) return false;
-      if (!query) return true;
-      return (
-        l.title.toLowerCase().includes(query) ||
-        l.city.toLowerCase().includes(query) ||
-        l.neighborhood.toLowerCase().includes(query) ||
-        l.description.toLowerCase().includes(query)
-      );
-    });
-  }, [allListings, city, q, type]);
+  const listings = useMemo(() => allListings, [allListings]);
 
   return (
     <div className="min-h-dvh bg-zinc-50 text-zinc-950">
@@ -124,19 +186,19 @@ export default function ListingsPage() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8 animate-fade-in">
         <div className="rounded-3xl border border-black/10 bg-white p-6 shadow-sm">
           <h1 className="text-2xl font-semibold tracking-tight">Annonces</h1>
           <p className="mt-1 text-sm text-zinc-600">
             Recherchez par titre, ville, quartier, description.
           </p>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <form onSubmit={onSubmitSearch} className="mt-5 grid gap-3 sm:grid-cols-3">
             <div>
               <label className="text-xs font-medium text-zinc-700">Recherche</label>
               <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
+                value={draftQ}
+                onChange={(e) => setDraftQ(e.target.value)}
                 className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
                 placeholder="Ex: Almadies, studio..."
               />
@@ -144,8 +206,8 @@ export default function ListingsPage() {
             <div>
               <label className="text-xs font-medium text-zinc-700">Ville</label>
               <input
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
+                value={draftCity}
+                onChange={(e) => setDraftCity(e.target.value)}
                 className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
                 placeholder="Ex: Dakar"
               />
@@ -153,8 +215,8 @@ export default function ListingsPage() {
             <div>
               <label className="text-xs font-medium text-zinc-700">Type</label>
               <select
-                value={type}
-                onChange={(e) => setType(e.target.value as any)}
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value as any)}
                 className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
               >
                 <option value="">Tous</option>
@@ -164,6 +226,33 @@ export default function ListingsPage() {
                 <option value="house">Maison</option>
               </select>
             </div>
+            <div>
+              <label className="text-xs font-medium text-zinc-700">Budget max (XOF)</label>
+              <input
+                value={draftMax}
+                onChange={(e) => setDraftMax(e.target.value)}
+                inputMode="numeric"
+                className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
+                placeholder="Ex: 500000"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                className="h-11 w-full rounded-2xl bg-yellow-400 px-5 text-sm font-semibold text-black hover:bg-yellow-300"
+              >
+                Appliquer
+              </button>
+            </div>
+          </form>
+
+          <div className="mt-3 text-xs text-zinc-600">
+            {total ? (
+              <span>
+                {total} annonce{total > 1 ? "s" : ""} · page {page} / {totalPages}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -207,6 +296,30 @@ export default function ListingsPage() {
         {listings.length === 0 ? (
           <div className="mt-10 rounded-3xl border border-black/10 bg-white p-6 text-sm text-zinc-600 shadow-sm">
             Aucune annonce trouvée.
+          </div>
+        ) : null}
+
+        {totalPages > 1 ? (
+          <div className="mt-8 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => pushParams({ page: String(Math.max(1, page - 1)) })}
+              disabled={page <= 1}
+              className="h-10 rounded-2xl border border-black/10 bg-white px-4 text-sm font-semibold text-black hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Précédent
+            </button>
+            <div className="px-3 text-sm text-zinc-600">
+              Page {page} / {totalPages}
+            </div>
+            <button
+              type="button"
+              onClick={() => pushParams({ page: String(Math.min(totalPages, page + 1)) })}
+              disabled={page >= totalPages}
+              className="h-10 rounded-2xl border border-black/10 bg-white px-4 text-sm font-semibold text-black hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Suivant
+            </button>
           </div>
         ) : null}
       </main>

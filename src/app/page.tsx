@@ -1,12 +1,13 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { type UserRole } from "@/lib/auth/local";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { getRoleForUser } from "@/lib/auth/supabase";
 import { listAllListings } from "@/lib/listings/local";
-import { listPublicListings, type SupabaseListing } from "@/lib/listings/supabase";
+import { listPublicListingsPaged, type SupabaseListing } from "@/lib/listings/supabase";
 import { getPublicProfile, type SupabaseProfile } from "@/lib/profiles/supabase";
 import { getProfile } from "@/lib/profiles/local";
 
@@ -18,12 +19,41 @@ function typeLabel(t: SupabaseListing["type"]) {
 }
 
 export default function Home() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [role, setRole] = useState<UserRole | null>(null);
   const [hasSession, setHasSession] = useState(false);
   const [listings, setListings] = useState<SupabaseListing[]>([]);
+  const [total, setTotal] = useState(0);
   const [brokersById, setBrokersById] = useState<Record<string, SupabaseProfile | null>>(
     {}
   );
+
+  const page = Math.max(1, Number(searchParams.get("page") ?? "1") || 1);
+  const q = searchParams.get("q") ?? "";
+  const city = searchParams.get("city") ?? "";
+  const type = (searchParams.get("type") ?? "") as SupabaseListing["type"] | "";
+  const maxPriceXof = (() => {
+    const raw = (searchParams.get("max") ?? "").trim();
+    if (!raw) return "";
+    const n = Number(raw);
+    return Number.isFinite(n) ? String(Math.max(0, Math.floor(n))) : "";
+  })();
+
+  const [draftQ, setDraftQ] = useState(q);
+  const [draftCity, setDraftCity] = useState(city);
+  const [draftType, setDraftType] = useState<typeof type>(type);
+  const [draftMax, setDraftMax] = useState(maxPriceXof);
+
+  useEffect(() => {
+    setDraftQ(q);
+    setDraftCity(city);
+    setDraftType(type);
+    setDraftMax(maxPriceXof);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, city, type, maxPriceXof]);
 
   useEffect(() => {
     const supabase = createSupabaseBrowserClient();
@@ -79,23 +109,68 @@ export default function Home() {
 
     (async () => {
       try {
-        const data = await listPublicListings({ limit: 6 });
+        const res = await listPublicListingsPaged({
+          page,
+          pageSize: 6,
+          q,
+          city,
+          type,
+          maxPriceXof: maxPriceXof ? Number(maxPriceXof) : null,
+        });
         if (cancelled) return;
-        setListings(data);
+        setListings(res.items);
+        setTotal(res.total);
       } catch {
         const all = listAllListings();
-        const fallback = all
-          .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-          .slice(0, 6);
+        const query = q.trim().toLowerCase();
+        const filtered = all.filter((l) => {
+          if (city && l.city.toLowerCase().indexOf(city.toLowerCase()) === -1) return false;
+          if (type && l.type !== type) return false;
+          if (maxPriceXof && Number(l.priceXof) > Number(maxPriceXof)) return false;
+          if (!query) return true;
+          return (
+            l.title.toLowerCase().includes(query) ||
+            l.city.toLowerCase().includes(query) ||
+            l.neighborhood.toLowerCase().includes(query) ||
+            l.description.toLowerCase().includes(query)
+          );
+        });
+
+        const sorted = filtered.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+        const start = (page - 1) * 6;
+        const items = sorted.slice(start, start + 6);
         if (cancelled) return;
-        setListings(fallback as any);
+        setListings(items as any);
+        setTotal(sorted.length);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [city, maxPriceXof, page, q, type]);
+
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / 6)), [total]);
+
+  function pushParams(next: Record<string, string>) {
+    const sp = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(next)) {
+      if (!v) sp.delete(k);
+      else sp.set(k, v);
+    }
+    router.push(`${pathname}?${sp.toString()}`);
+  }
+
+  function onSubmitSearch(e: FormEvent) {
+    e.preventDefault();
+    pushParams({
+      page: "1",
+      q: draftQ.trim(),
+      city: draftCity.trim(),
+      type: draftType,
+      max: draftMax.trim(),
+    });
+  }
 
   const dashboardHref =
     role === "admin"
@@ -107,8 +182,8 @@ export default function Home() {
           : null;
 
   return (
-    <div className="min-h-screen bg-white text-zinc-950">
-      <div className="pointer-events-none fixed inset-0 -z-10">
+    <div className="min-h-screen bg-white text-zinc-950 animate-fade-in">
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -top-28 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-yellow-400/30 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-yellow-400/20 blur-3xl" />
       </div>
@@ -175,17 +250,23 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <form onSubmit={onSubmitSearch} className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 shadow-sm">
               <label className="block text-xs font-medium text-zinc-600">Ville</label>
               <input
                 placeholder="Ex: Dakar, Thiès, Saint-Louis"
+                value={draftCity}
+                onChange={(e) => setDraftCity(e.target.value)}
                 className="mt-1 w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
               />
             </div>
             <div className="rounded-2xl border border-black/10 bg-white px-4 py-3 shadow-sm">
               <label className="block text-xs font-medium text-zinc-600">Type</label>
-              <select className="mt-1 w-full bg-transparent text-sm outline-none">
+              <select
+                value={draftType}
+                onChange={(e) => setDraftType(e.target.value as any)}
+                className="mt-1 w-full bg-transparent text-sm outline-none"
+              >
                 <option value="">Tous</option>
                 <option value="room">Chambre</option>
                 <option value="studio">Studio</option>
@@ -198,19 +279,39 @@ export default function Home() {
               <input
                 placeholder="Ex: 500000"
                 inputMode="numeric"
+                value={draftMax}
+                onChange={(e) => setDraftMax(e.target.value)}
                 className="mt-1 w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
               />
             </div>
-          </div>
-
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-xs text-zinc-600">
-              Astuce: bientôt tu pourras filtrer par quartier, équipements, chambres, etc.
+            <div className="sm:col-span-3 rounded-2xl border border-black/10 bg-white px-4 py-3 shadow-sm">
+              <label className="block text-xs font-medium text-zinc-600">Recherche</label>
+              <input
+                placeholder="Ex: Almadies, studio, meublé..."
+                value={draftQ}
+                onChange={(e) => setDraftQ(e.target.value)}
+                className="mt-1 w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+              />
             </div>
-            <button className="h-11 w-full rounded-full bg-yellow-400 px-5 text-sm font-semibold text-black hover:bg-yellow-300 sm:w-auto">
-              Rechercher
-            </button>
-          </div>
+
+            <div className="sm:col-span-3 mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-zinc-600">
+                {total ? (
+                  <span>
+                    {total} annonce{total > 1 ? "s" : ""} · page {page} / {totalPages}
+                  </span>
+                ) : (
+                  <span>Astuce: bientôt tu pourras filtrer par quartier, équipements, chambres, etc.</span>
+                )}
+              </div>
+              <button
+                type="submit"
+                className="h-11 w-full rounded-full bg-yellow-400 px-5 text-sm font-semibold text-black hover:bg-yellow-300 sm:w-auto"
+              >
+                Rechercher
+              </button>
+            </div>
+          </form>
         </section>
 
         <section className="mt-8">
@@ -291,6 +392,30 @@ export default function Home() {
               );
             })}
           </div>
+
+          {totalPages > 1 ? (
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => pushParams({ page: String(Math.max(1, page - 1)) })}
+                disabled={page <= 1}
+                className="h-10 rounded-2xl border border-black/10 bg-white px-4 text-sm font-semibold text-black hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Précédent
+              </button>
+              <div className="px-3 text-sm text-zinc-600">
+                Page {page} / {totalPages}
+              </div>
+              <button
+                type="button"
+                onClick={() => pushParams({ page: String(Math.min(totalPages, page + 1)) })}
+                disabled={page >= totalPages}
+                className="h-10 rounded-2xl border border-black/10 bg-white px-4 text-sm font-semibold text-black hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Suivant
+              </button>
+            </div>
+          ) : null}
 
           {listings.length === 0 ? (
             <div className="mt-6 rounded-3xl border border-black/10 bg-white p-6 text-sm text-zinc-600 shadow-sm">

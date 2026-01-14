@@ -87,7 +87,7 @@ export default function BrokerSettingsPage() {
                 <input
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
+                  className="mt-1 h-11 w-full max-w-md rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
                   placeholder="Ex: Carrelle Kimbassa"
                 />
               </div>
@@ -97,7 +97,7 @@ export default function BrokerSettingsPage() {
                 <input
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
+                  className="mt-1 h-11 w-full max-w-md rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
                   placeholder="Ex: Dakar"
                 />
               </div>
@@ -107,7 +107,7 @@ export default function BrokerSettingsPage() {
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
+                  className="mt-1 h-11 w-full max-w-md rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
                   placeholder="Ex: +221 77 000 00 00"
                 />
               </div>
@@ -117,7 +117,7 @@ export default function BrokerSettingsPage() {
                 <input
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
-                  className="mt-1 h-11 w-full rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
+                  className="mt-1 h-11 w-full max-w-md rounded-2xl border border-black/10 bg-white px-4 text-sm outline-none focus:border-yellow-400"
                   placeholder="Ex: +221770000000"
                 />
               </div>
@@ -125,7 +125,7 @@ export default function BrokerSettingsPage() {
 
             <div>
               <label className="text-xs font-medium text-zinc-700">Photo (avatar)</label>
-              <div className="mt-2 flex items-center gap-4">
+              <div className="mt-2 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <div className="h-20 w-20 overflow-hidden rounded-3xl border border-black/10 bg-zinc-100">
                   {avatarUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -137,7 +137,7 @@ export default function BrokerSettingsPage() {
                 <input
                   type="file"
                   accept="image/*"
-                  className="block text-sm"
+                  className="block w-full min-w-0 text-sm"
                   onChange={async (e) => {
                     const file = e.target.files?.[0];
                     if (!file || !userId) return;
@@ -166,7 +166,7 @@ export default function BrokerSettingsPage() {
             </div>
           </div>
 
-          <div className="mt-6 flex items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <button
               onClick={onSave}
               className="h-11 rounded-2xl bg-yellow-400 px-5 text-sm font-semibold text-black hover:bg-yellow-300"
